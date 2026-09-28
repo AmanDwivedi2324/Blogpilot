@@ -1,6 +1,7 @@
 import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
+import authRoutes from "./routes/auth.routes.js";
 
 const app = express();
 
@@ -15,11 +16,13 @@ app.use(express.json());
 app.use(express.urlencoded({extended:true}));
 app.use(cookieParser());
 
-app.get("/api/health", (req,res) => {
+app.get("/api/v1/health", (req,res) => {
     res.status(200).json({
         success:true,
         message:"BlogPilot API is running"
     });
 });
+
+app.use("/api/v1/auth", authRoutes);
 
 export default app;
