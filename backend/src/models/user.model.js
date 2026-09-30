@@ -41,7 +41,7 @@ const userSchema = new mongoose.Schema(
             default: null,
             select: false
         },
-        
+
         resetPasswordOtpHash: {
             type: String,
             select: false,
@@ -55,6 +55,16 @@ const userSchema = new mongoose.Schema(
         resetPasswordOtpVerified: {
             type: Boolean,
             default: false,
+            select: false,
+        },
+        
+        resetPasswordSessionHash: {
+            type: String,
+            select: false,
+        },
+
+        resetPasswordSessionExpires: {
+            type: Date,
             select: false,
         },
     },

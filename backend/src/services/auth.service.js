@@ -209,64 +209,140 @@ export const forgotPassword = async (email) => {
     });
 };
 
-export const verifyPasswordResetOtp = async ({ email, otp, }) => {
+export const verifyPasswordResetOtp = async ({ email, otp }) => {
     const normalizedEmail = email.trim().toLowerCase();
 
-    const user = await User.findOne({
-        email: normalizedEmail,
-    }).select(
-        "+resetPasswordOtpHash +resetPasswordOtpExpires"
-    );
+    const user = await User.findOne({ email: normalizedEmail })
+        .select(
+            "+resetPasswordOtpHash +resetPasswordOtpExpires +resetPasswordOtpVerified"
+        );
 
     if (!user) {
-        const error = new Error("Invalid OTP");
-        error.statusCode = 400;
-        throw error;
+        throw new Error("Invalid OTP");
     }
 
     if (
         !user.resetPasswordOtpHash ||
-        !user.resetPasswordOtpExpires
+        !user.resetPasswordOtpExpires ||
+        user.resetPasswordOtpExpires < new Date()
     ) {
-        const error = new Error("No active OTP request");
-        error.statusCode = 400;
-        throw error;
+        throw new Error("OTP expired or invalid");
     }
 
-    if (
-        user.resetPasswordOtpExpires.getTime() < Date.now()
-    ) {
-        const error = new Error("OTP has expired");
-        error.statusCode = 400;
-        throw error;
+    const otpHash = hashOtp(otp);
+
+    if (otpHash !== user.resetPasswordOtpHash) {
+        throw new Error("Invalid OTP");
     }
 
-    const providedOtpHash = hashOtp(otp);
+    const resetSessionToken = crypto.randomBytes(32).toString("hex");
 
-    if (providedOtpHash !== user.resetPasswordOtpHash) {
-        const error = new Error("Invalid OTP");
-        error.statusCode = 400;
-        throw error;
-    }
+    const resetSessionHash = crypto
+        .createHash("sha256")
+        .update(resetSessionToken)
+        .digest("hex");
 
+    user.resetPasswordOtpHash = undefined;
+    user.resetPasswordOtpExpires = undefined;
     user.resetPasswordOtpVerified = true;
+
+    user.resetPasswordSessionHash = resetSessionHash;
+    user.resetPasswordSessionExpires = new Date(
+        Date.now() + 10 * 60 * 1000
+    );
 
     await user.save();
 
+    return {
+        resetSessionToken,
+    };
+};
 
-    const resetSessionToken = jwt.sign(
+const hashResetSessionToken = (token) =>
+    crypto.createHash("sha256").update(token).digest("hex");
+
+export const continueAfterOtp = async (resetSessionToken) => {
+    const resetSessionHash = hashResetSessionToken(resetSessionToken);
+
+    const user = await User.findOneAndUpdate(
         {
-            userId: user._id,
-            type: "password-reset",
+            resetPasswordSessionHash: resetSessionHash,
+            resetPasswordSessionExpires: { $gt: new Date() },
+            resetPasswordOtpVerified: true,
         },
-        process.env.PASSWORD_RESET_SECRET,
         {
-            expiresIn: "10m",
+            $unset: {
+                resetPasswordOtpHash: 1,
+                resetPasswordOtpExpires: 1,
+                resetPasswordOtpVerified: 1,
+                resetPasswordSessionHash: 1,
+                resetPasswordSessionExpires: 1,
+            },
+        },
+        {
+            new: true,
         }
     );
 
+    if (!user) {
+        throw new Error("Invalid or expired reset session");
+    }
+
+    const tokens = await createAuthTokens(user);
+
     return {
-        resetSessionToken,
+        user: getPublicUser(user),
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
+    };
+};
+
+export const resetPassword = async ({
+    resetSessionToken,
+    newPassword,
+}) => {
+    if (!newPassword || newPassword.length < 8) {
+        throw new Error("Password must be at least 8 characters");
+    }
+
+    const resetSessionHash = hashResetSessionToken(resetSessionToken);
+
+    const user = await User.findOneAndUpdate(
+        {
+            resetPasswordSessionHash: resetSessionHash,
+            resetPasswordSessionExpires: { $gt: new Date() },
+            resetPasswordOtpVerified: true,
+        },
+        {
+            $unset: {
+                resetPasswordOtpHash: 1,
+                resetPasswordOtpExpires: 1,
+                resetPasswordOtpVerified: 1,
+                resetPasswordSessionHash: 1,
+                resetPasswordSessionExpires: 1,
+            },
+        },
+        {
+            new: true,
+        }
+    );
+
+    if (!user) {
+        throw new Error("Invalid or expired reset session");
+    }
+
+    user.password = newPassword;
+
+    user.refreshTokenHash = undefined;
+
+    await user.save();
+
+    const tokens = await createAuthTokens(user);
+
+    return {
+        user: getPublicUser(user),
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
     };
 };
 

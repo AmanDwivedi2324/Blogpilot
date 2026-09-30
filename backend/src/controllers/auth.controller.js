@@ -4,7 +4,9 @@ import {
     refreshUserToken,
     logoutUser,
     forgotPassword,
-    verifyPasswordResetOtp
+    verifyPasswordResetOtp,
+    continueAfterOtp,
+    resetPassword
 } from "../services/auth.service.js";
 
 const refreshCookieOptions = {
@@ -17,11 +19,14 @@ const refreshCookieOptions = {
 };
 
 const setRefreshTokenCookie = (res, refreshToken) => {
-    res.cookie(
-        "refreshToken",
-        refreshToken,
-        refreshCookieOptions
-    );
+    res.cookie("refreshToken", refreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite:
+            process.env.NODE_ENV === "production" ? "none" : "lax",
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+        path: "/api/v1/auth",
+    });
 };
 
 export const register = async (req, res) => {
@@ -160,58 +165,113 @@ export const getMe = async (req, res) => {
 };
 
 export const forgotPasswordController = async (req, res) => {
-  try {
-    const { email } = req.body;
+    try {
+        const { email } = req.body;
 
-    if (!email) {
-      return res.status(400).json({
-        success: false,
-        message: "Email is required",
-      });
+        if (!email) {
+            return res.status(400).json({
+                success: false,
+                message: "Email is required",
+            });
+        }
+
+        await forgotPassword(email);
+
+        return res.status(200).json({
+            success: true,
+            message:
+                "If an account exists with this email, an OTP has been sent",
+        });
+    } catch (error) {
+        return res.status(error.statusCode || 500).json({
+            success: false,
+            message: error.message || "Failed to process request",
+        });
     }
-
-    await forgotPassword(email);
-
-    return res.status(200).json({
-      success: true,
-      message:
-        "If an account exists with this email, an OTP has been sent",
-    });
-  } catch (error) {
-    return res.status(error.statusCode || 500).json({
-      success: false,
-      message: error.message || "Failed to process request",
-    });
-  }
 };
 
 export const verifyOtp = async (req, res) => {
-  try {
-    const { email, otp } = req.body;
+    try {
+        const { email, otp } = req.body;
 
-    if (!email || !otp) {
-      return res.status(400).json({
-        success: false,
-        message: "Email and OTP are required",
-      });
+        if (!email || !otp) {
+            return res.status(400).json({
+                success: false,
+                message: "Email and OTP are required",
+            });
+        }
+
+        const result = await verifyPasswordResetOtp({
+            email,
+            otp,
+        });
+
+        return res.status(200).json({
+            success: true,
+            message: "OTP verified successfully",
+            data: {
+                resetSessionToken: result.resetSessionToken,
+            },
+        });
+    } catch (error) {
+        return res.status(error.statusCode || 500).json({
+            success: false,
+            message: error.message || "OTP verification failed",
+        });
     }
+};
 
-    const result = await verifyPasswordResetOtp({
-      email,
-      otp,
-    });
+export const continueAfterOtpController = async (req, res) => {
+    try {
+        const { resetSessionToken } = req.body;
 
-    return res.status(200).json({
-      success: true,
-      message: "OTP verified successfully",
-      data: {
-        resetSessionToken: result.resetSessionToken,
-      },
-    });
-  } catch (error) {
-    return res.status(error.statusCode || 500).json({
-      success: false,
-      message: error.message || "OTP verification failed",
-    });
-  }
+        if (!resetSessionToken) {
+            return res.status(400).json({
+                message: "Reset session token is required",
+            });
+        }
+
+        const result = await continueAfterOtp(resetSessionToken);
+
+        setRefreshTokenCookie(res, result.refreshToken);
+
+        return res.status(200).json({
+            message: "Authentication successful",
+            user: result.user,
+            accessToken: result.accessToken,
+        });
+    } catch (error) {
+        return res.status(401).json({
+            message: error.message,
+        });
+    }
+};
+
+export const resetPasswordController = async (req, res) => {
+    try {
+        const { resetSessionToken, newPassword } = req.body;
+
+        if (!resetSessionToken || !newPassword) {
+            return res.status(400).json({
+                message: "Reset session token and new password are required",
+            });
+        }
+
+        const result = await resetPassword({
+            resetSessionToken,
+            newPassword,
+        });
+
+        setRefreshTokenCookie(res, result.refreshToken);
+
+        return res.status(200).json({
+            message: "Password updated successfully",
+            user: result.user,
+            accessToken: result.accessToken,
+        });
+    } catch (error) {
+        return res.status(400).json({
+            message: error.message,
+        });
+    }
 };
