@@ -28,7 +28,7 @@ const getPublicUser = (user) => ({
 });
 
 export const registerUser = async ({ name, email, password }) => {
-    const normalizedEmail = email.trim().lowerCase();
+    const normalizedEmail = email.trim().toLowerCase();
 
     const existingUser = await User.findOne({
         email: normalizedEmail,
