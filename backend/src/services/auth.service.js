@@ -1,8 +1,11 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import crypto from "crypto";
 
 import User from "../models/user.model.js"
 import { generateAccessToken, generateRefreshToken } from "../utils/jwt.js";
+import { generateOtp, hashOtp } from "../utils/otp.js";
+import { sendPasswordResetOtp } from "./mail.service.js";
 
 const createAuthTokens = async (user) => {
     const accessToken = generateAccessToken(user._id);
@@ -46,9 +49,9 @@ export const registerUser = async ({ name, email, password }) => {
         name: name.trim(),
         email: normalizedEmail,
         password: hashedPassword,
-        avatar:{
-            url:"",
-            publicId:""
+        avatar: {
+            url: "",
+            publicId: ""
         }
     });
 
@@ -175,3 +178,95 @@ export const logoutUser = async (refreshToken) => {
         // the controller will clear the cookie.
     }
 };
+
+export const forgotPassword = async (email) => {
+    const normalizedEmail = email.trim().toLowerCase();
+
+    const user = await User.findOne({
+        email: normalizedEmail,
+    });
+
+    if (!user) {
+        return;
+    }
+
+    const otp = generateOtp();
+    const otpHash = hashOtp(otp);
+
+    user.resetPasswordOtpHash = otpHash;
+
+    user.resetPasswordOtpExpires = new Date(
+        Date.now() + 10 * 60 * 1000
+    );
+
+    user.resetPasswordOtpVerified = false;
+
+    await user.save();
+
+    await sendPasswordResetOtp({
+        email: user.email,
+        otp,
+    });
+};
+
+export const verifyPasswordResetOtp = async ({ email, otp, }) => {
+    const normalizedEmail = email.trim().toLowerCase();
+
+    const user = await User.findOne({
+        email: normalizedEmail,
+    }).select(
+        "+resetPasswordOtpHash +resetPasswordOtpExpires"
+    );
+
+    if (!user) {
+        const error = new Error("Invalid OTP");
+        error.statusCode = 400;
+        throw error;
+    }
+
+    if (
+        !user.resetPasswordOtpHash ||
+        !user.resetPasswordOtpExpires
+    ) {
+        const error = new Error("No active OTP request");
+        error.statusCode = 400;
+        throw error;
+    }
+
+    if (
+        user.resetPasswordOtpExpires.getTime() < Date.now()
+    ) {
+        const error = new Error("OTP has expired");
+        error.statusCode = 400;
+        throw error;
+    }
+
+    const providedOtpHash = hashOtp(otp);
+
+    if (providedOtpHash !== user.resetPasswordOtpHash) {
+        const error = new Error("Invalid OTP");
+        error.statusCode = 400;
+        throw error;
+    }
+
+    user.resetPasswordOtpVerified = true;
+
+    await user.save();
+
+
+    const resetSessionToken = jwt.sign(
+        {
+            userId: user._id,
+            type: "password-reset",
+        },
+        process.env.PASSWORD_RESET_SECRET,
+        {
+            expiresIn: "10m",
+        }
+    );
+
+    return {
+        resetSessionToken,
+    };
+};
+

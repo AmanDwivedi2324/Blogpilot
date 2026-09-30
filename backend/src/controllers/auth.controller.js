@@ -3,6 +3,8 @@ import {
     loginUser,
     refreshUserToken,
     logoutUser,
+    forgotPassword,
+    verifyPasswordResetOtp
 } from "../services/auth.service.js";
 
 const refreshCookieOptions = {
@@ -155,4 +157,61 @@ export const getMe = async (req, res) => {
             user: req.user,
         },
     });
+};
+
+export const forgotPasswordController = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message: "Email is required",
+      });
+    }
+
+    await forgotPassword(email);
+
+    return res.status(200).json({
+      success: true,
+      message:
+        "If an account exists with this email, an OTP has been sent",
+    });
+  } catch (error) {
+    return res.status(error.statusCode || 500).json({
+      success: false,
+      message: error.message || "Failed to process request",
+    });
+  }
+};
+
+export const verifyOtp = async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+
+    if (!email || !otp) {
+      return res.status(400).json({
+        success: false,
+        message: "Email and OTP are required",
+      });
+    }
+
+    const result = await verifyPasswordResetOtp({
+      email,
+      otp,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "OTP verified successfully",
+      data: {
+        resetSessionToken: result.resetSessionToken,
+      },
+    });
+  } catch (error) {
+    return res.status(error.statusCode || 500).json({
+      success: false,
+      message: error.message || "OTP verification failed",
+    });
+  }
 };
