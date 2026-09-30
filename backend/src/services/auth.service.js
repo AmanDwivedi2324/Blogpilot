@@ -45,7 +45,11 @@ export const registerUser = async ({ name, email, password }) => {
     const user = await User.create({
         name: name.trim(),
         email: normalizedEmail,
-        password: hashedPassword
+        password: hashedPassword,
+        avatar:{
+            url:"",
+            publicId:""
+        }
     });
 
     const { accessToken, refreshToken } = await createAuthTokens(user);

@@ -10,6 +10,6 @@ router.post("/register", register);
 router.post("/login", login);
 router.post("/refresh", refresh);
 router.post("/logout", logout);
-router.get("/me". authenticate, getMe);
+router.get("/me", authenticate, getMe);
 
 export default router;
