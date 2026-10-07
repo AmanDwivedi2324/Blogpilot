@@ -6,6 +6,8 @@ import {
     deleteBlog,
 } from "../services/blog.service.js";
 
+import { generateBlogWithAI } from "../services/ai.service.js";
+
 export const createBlogController = async (req, res) => {
     try {
         const {
@@ -124,6 +126,51 @@ export const deleteBlogController = async (req, res) => {
 
         return res.status(500).json({
             message: "Failed to delete blog",
+        });
+    }
+};
+
+export const generateBlogController = async (req, res) => {
+    try {
+        const { prompt } = req.body;
+
+        if (!prompt?.trim()) {
+            return res.status(400).json({
+                message: "Prompt is required",
+            });
+        }
+
+        const cleanPrompt = prompt.trim();
+
+        const result = await generateBlogWithAI({
+            prompt: cleanPrompt,
+        });
+
+        const blog = await createBlog({
+            userId: req.user._id,
+            title: result.title,
+            prompt: cleanPrompt,
+            content: result.content,
+            plan: result.plan,
+            sources: result.sources,
+            images: result.images,
+        });
+
+        return res.status(201).json({
+            message: "Blog generated successfully",
+            blog,
+        });
+    } catch (error) {
+        console.error("Generate blog error:", error);
+
+        if (error.statusCode === 502) {
+            return res.status(502).json({
+                message: error.message,
+            });
+        }
+
+        return res.status(500).json({
+            message: "Failed to generate blog",
         });
     }
 };
