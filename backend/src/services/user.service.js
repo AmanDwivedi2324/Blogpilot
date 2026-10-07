@@ -14,7 +14,11 @@ export const getCurrentUser = async (userId) => {
 
 }
 
-export const updateCurrentUser = async ({ userId, name, avatarFile }) => {
+export const updateCurrentUser = async ({
+    userId,
+    name,
+    avatarFile,
+}) => {
     const user = await User.findById(userId);
 
     if (!user) {
@@ -25,8 +29,17 @@ export const updateCurrentUser = async ({ userId, name, avatarFile }) => {
 
     if (name !== undefined) {
         const trimmedName = name.trim();
+
+        if (!trimmedName) {
+            const error = new Error("Name cannot be empty");
+            error.statusCode = 400;
+            throw error;
+        }
+
         if (trimmedName.length < 2) {
-            const error = new Error("Name must be at least 2 characters");
+            const error = new Error(
+                "Name must be at least 2 characters"
+            );
             error.statusCode = 400;
             throw error;
         }
@@ -34,12 +47,10 @@ export const updateCurrentUser = async ({ userId, name, avatarFile }) => {
         user.name = trimmedName;
     }
 
+    let oldPublicId = null;
+
     if (avatarFile) {
-        if (user.avatar?.publicId) {
-            await cloudinary.uploader.destroy(
-                user.avatar.publicId
-            );
-        }
+        oldPublicId = user.avatar?.publicId || null;
 
         const uploadResult = await new Promise(
             (resolve, reject) => {
@@ -70,5 +81,10 @@ export const updateCurrentUser = async ({ userId, name, avatarFile }) => {
 
     await user.save();
 
+    // Delete old avatar after new avatar is saved
+    if (oldPublicId) {
+        await cloudinary.uploader.destroy(oldPublicId);
+    }
+
     return user;
-}
+};

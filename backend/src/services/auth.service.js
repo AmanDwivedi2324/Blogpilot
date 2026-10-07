@@ -30,7 +30,7 @@ const getPublicUser = (user) => ({
     createdAt: user.createdAt
 });
 
-export const registerUser = async ({ name, email, password }) => {
+export const registerUser = async ({ name, email, password, avatarFile }) => {
     const normalizedEmail = email.trim().toLowerCase();
 
     const existingUser = await User.findOne({
@@ -49,11 +49,20 @@ export const registerUser = async ({ name, email, password }) => {
         name: name.trim(),
         email: normalizedEmail,
         password: hashedPassword,
-        avatar: {
-            url: "",
-            publicId: ""
-        }
     });
+
+    if (avatarFile) {
+    const result = await uploadToCloudinary(
+      avatarFile.buffer
+    );
+
+    user.avatar = {
+      url: result.secure_url,
+      publicId: result.public_id,
+    };
+
+    await user.save();
+  }
 
     const { accessToken, refreshToken } = await createAuthTokens(user);
 

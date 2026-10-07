@@ -51,6 +51,7 @@ export const register = async (req, res) => {
             name,
             email,
             password,
+            avatarFile: req.file,
         });
 
         setRefreshTokenCookie(res, result.refreshToken);
