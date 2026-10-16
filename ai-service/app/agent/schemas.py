@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field
 class ResearchDecision(BaseModel):
     needs_research: bool
     mode: str = Field(
-        description="One of: closed_book, hybrid, open_book"
+        description="Choose closed_book, hybrid, or open_book"
     )
     queries: list[str] = Field(default_factory=list)
 
@@ -13,8 +13,8 @@ class SectionPlan(BaseModel):
     id: str
     title: str
     goal: str
-    requires_research: bool = False
-    requires_image: bool = False
+    requiresResearch: bool = False
+    requiresImage: bool = False
 
 
 class BlogPlan(BaseModel):
@@ -24,24 +24,7 @@ class BlogPlan(BaseModel):
     sections: list[SectionPlan]
 
 
-class Source(BaseModel):
-    title: str = ""
-    url: str = ""
-    snippet: str = ""
-
-
-class ImagePlan(BaseModel):
-    section_id: str
-    description: str
-    alt: str
-
-
 class GeneratedSection(BaseModel):
     section_id: str
-    title: str
-    content: str
-
-
-class GeneratedBlog(BaseModel):
     title: str
     content: str

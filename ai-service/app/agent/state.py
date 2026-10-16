@@ -1,4 +1,5 @@
-from typing import TypedDict
+from typing import Annotated, TypedDict
+import operator
 
 
 class BlogState(TypedDict, total=False):
@@ -9,14 +10,9 @@ class BlogState(TypedDict, total=False):
     queries: list[str]
 
     evidence: list[dict]
+    sources: list[dict]
 
     plan: dict
-
-    generated_sections: list[dict]
-
-    merged_content: str
-
-    image_plan: list[dict]
-    images: list[dict]
+    generated_sections: Annotated[list[dict], operator.add]
 
     final_content: str

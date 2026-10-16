@@ -1,81 +1,62 @@
-from fastapi import FastAPI
-from pydantic import BaseModel
+import logging
 
-app = FastAPI()
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel, Field
+
+from app.agent.graph import blog_graph
+
+
+logging.basicConfig(level=logging.INFO)
+
+app = FastAPI(title="BlogPilot AI Service")
 
 
 class GenerateBlogRequest(BaseModel):
-    prompt: str
+    prompt: str = Field(min_length=3, max_length=5000)
 
 
-@app.get("/")
+@app.get("/health")
 def health():
     return {
         "success": True,
         "message": "AI service is running",
     }
 
-@app.get("/health")
-def health():
-    return {
-        "success": True,
-        "message": "AI service is healthy",
-    }
-
 
 @app.post("/generate")
 def generate_blog(request: GenerateBlogRequest):
-    return {
-        "success": True,
-        "data": {
-            "title": "Test AI Generated Blog",
+    prompt = request.prompt.strip()
 
-            "content": f"""# Test AI Generated Blog
+    if len(prompt) < 3:
+        raise HTTPException(
+            status_code=400,
+            detail="Please provide a more descriptive prompt.",
+        )
 
-## Introduction
+    try:
+        result = blog_graph.invoke({
+            "topic": prompt,
+            "generated_sections": [],
+        })
 
-This is a temporary response from the AI service.
+        plan = result["plan"]
+        content = result["final_content"]
 
-User prompt:
-
-{request.prompt}
-
-## Conclusion
-
-The Express backend successfully communicated with the FastAPI service.
-""",
-
-            "plan": {
-                "title": "Test AI Generated Blog",
-                "audience": "General readers",
-                "tone": "Professional",
-                "sections": [
-                    {
-                        "id": "introduction",
-                        "title": "Introduction",
-                        "goal": "Introduce the topic",
-                        "requiresResearch": False,
-                        "requiresImage": False
-                    },
-                    {
-                        "id": "main-content",
-                        "title": "Main Content",
-                        "goal": "Explain the topic",
-                        "requiresResearch": False,
-                        "requiresImage": False
-                    },
-                    {
-                        "id": "conclusion",
-                        "title": "Conclusion",
-                        "goal": "Summarize the topic",
-                        "requiresResearch": False,
-                        "requiresImage": False
-                    }
-                ]
+        return {
+            "success": True,
+            "data": {
+                "title": plan["title"],
+                "content": content,
+                "plan": plan,
+                "sources": result.get("sources", []),
+                "images": [],
             },
-
-            "sources": [],
-
-            "images": []
         }
-    }
+
+    except Exception:
+        logging.exception("Blog generation failed")
+
+        raise HTTPException(
+            status_code=502,
+            detail="The blog agent failed to generate content.",
+        )
