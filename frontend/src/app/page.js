@@ -46,6 +46,7 @@ export default function Home() {
     loadBlogs();
   }, [loading, isAuthenticated, router, loadBlogs]);
 
+
   async function handleGenerate(event) {
     event.preventDefault();
 
@@ -67,23 +68,28 @@ export default function Home() {
         body: { prompt: prompt.trim() },
       });
 
-      const result = response?.data;
-      const blog = result?.blog || result;
+      // Support either a direct JSON response or a wrapped response.
+      const payload = response?.data ?? response;
+      const blog = payload?.blog ?? payload;
 
-      if (!blog || !blog.content) {
+      if (typeof blog?.content !== "string" || !blog.content.trim()) {
+        console.error("Unexpected blog generation response:", response);
         throw new Error(
-          "The generation response did not contain blog content. Check your backend response format."
+          "The server responded, but blog content was missing. Check the browser console."
         );
       }
 
       setGeneratedBlog(blog);
+      setPrompt("");
       await loadBlogs();
     } catch (err) {
+      console.error("Blog generation failed:", err);
       setError(err.message || "Blog generation failed. Please try again.");
     } finally {
       setGenerating(false);
     }
   }
+
 
   if (loading || !isAuthenticated || pageLoading) {
     return (
