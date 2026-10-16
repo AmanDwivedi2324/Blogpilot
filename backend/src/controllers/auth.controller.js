@@ -141,7 +141,7 @@ export const logout = async (req, res) => {
             secure: process.env.NODE_ENV === "production",
             sameSite:
                 process.env.NODE_ENV === "production" ? "none" : "lax",
-            path: "/api/auth",
+            path: "/api/v1/auth",
         });
 
         return res.status(200).json({

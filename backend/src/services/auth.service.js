@@ -6,6 +6,7 @@ import User from "../models/user.model.js"
 import { generateAccessToken, generateRefreshToken } from "../utils/jwt.js";
 import { generateOtp, hashOtp } from "../utils/otp.js";
 import { sendPasswordResetOtp } from "./mail.service.js";
+import { uploadToCloudinary } from "./cloudinary.service.js";
 
 const createAuthTokens = async (user) => {
     const accessToken = generateAccessToken(user._id);
@@ -52,17 +53,17 @@ export const registerUser = async ({ name, email, password, avatarFile }) => {
     });
 
     if (avatarFile) {
-    const result = await uploadToCloudinary(
-      avatarFile.buffer
-    );
+        const result = await uploadToCloudinary(
+            avatarFile.buffer
+        );
 
-    user.avatar = {
-      url: result.secure_url,
-      publicId: result.public_id,
-    };
+        user.avatar = {
+            url: result.secure_url,
+            publicId: result.public_id,
+        };
 
-    await user.save();
-  }
+        await user.save();
+    }
 
     const { accessToken, refreshToken } = await createAuthTokens(user);
 
@@ -340,8 +341,9 @@ export const resetPassword = async ({
         throw new Error("Invalid or expired reset session");
     }
 
-    user.password = newPassword;
+    const hashedPassword = await bcrypt.hash(newPassword, 12);
 
+    user.password = hashedPassword;
     user.refreshTokenHash = undefined;
 
     await user.save();
