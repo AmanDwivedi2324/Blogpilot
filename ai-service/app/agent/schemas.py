@@ -36,6 +36,12 @@ class ImagePlan(BaseModel):
     alt: str
 
 
+class GeneratedSection(BaseModel):
+    section_id: str
+    title: str
+    content: str
+
+
 class GeneratedBlog(BaseModel):
     title: str
     content: str
