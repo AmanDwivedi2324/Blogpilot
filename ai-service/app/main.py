@@ -37,7 +37,10 @@ def generate_blog(request: GenerateBlogRequest):
         result = blog_graph.invoke({
             "topic": prompt,
             "generated_sections": [],
-        })
+        },
+        #for handling rate limiting
+        config={"max_concurrency":1},
+        )
 
         plan = result["plan"]
         content = result["final_content"]

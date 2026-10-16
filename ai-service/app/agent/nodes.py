@@ -124,7 +124,8 @@ def write_section_node(state):
             "audience": plan["audience"],
             "tone": plan["tone"],
             "section": section,
-            "research_evidence": state.get("evidence", []),
+            #for rate limiting
+            "research_evidence": state.get("evidence", [])[:3],
         }, ensure_ascii=False)),
     ])
 
@@ -147,16 +148,62 @@ def write_section_node(state):
     }
 
 
-def reducer_node(state):
-    """Order parallel results and edit them into a cohesive blog."""
+# def reducer_node(state):
+#     """Order parallel results and edit them into a cohesive blog."""
 
+#     plan = state["plan"]
+#     sections_by_id = {
+#         section["section_id"]: section
+#         for section in state.get("generated_sections", [])
+#     }
+
+#     ordered_sections = []
+
+#     for planned_section in plan["sections"]:
+#         generated = sections_by_id.get(planned_section["id"])
+
+#         if not generated:
+#             raise ValueError(
+#                 f"Missing generated section: {planned_section['id']}"
+#             )
+
+#         ordered_sections.append({
+#             "title": planned_section["title"],
+#             "content": generated["content"],
+#         })
+
+#     response = llm.invoke([
+#         SystemMessage(content=REDUCER_PROMPT),
+#         HumanMessage(content=json.dumps({
+#             "blog_title": plan["title"],
+#             "audience": plan["audience"],
+#             "tone": plan["tone"],
+#             "sections": ordered_sections,
+#         }, ensure_ascii=False)),
+#     ])
+
+#     content = response.content
+
+#     if not isinstance(content, str) or not content.strip():
+#         raise ValueError("The reducer returned empty blog content.")
+
+#     return {
+#         "final_content": content.strip(),
+#     }
+
+
+
+# for rate limiting
+
+def reducer_node(state):
     plan = state["plan"]
+
     sections_by_id = {
         section["section_id"]: section
         for section in state.get("generated_sections", [])
     }
 
-    ordered_sections = []
+    parts = [f"# {plan['title']}"]
 
     for planned_section in plan["sections"]:
         generated = sections_by_id.get(planned_section["id"])
@@ -166,26 +213,11 @@ def reducer_node(state):
                 f"Missing generated section: {planned_section['id']}"
             )
 
-        ordered_sections.append({
-            "title": planned_section["title"],
-            "content": generated["content"],
-        })
+        parts.append(
+            f"## {planned_section['title']}\n\n"
+            f"{generated['content'].strip()}"
+        )
 
-    response = llm.invoke([
-        SystemMessage(content=REDUCER_PROMPT),
-        HumanMessage(content=json.dumps({
-            "blog_title": plan["title"],
-            "audience": plan["audience"],
-            "tone": plan["tone"],
-            "sections": ordered_sections,
-        }, ensure_ascii=False)),
-    ])
+    final_content = "\n\n".join(parts)
 
-    content = response.content
-
-    if not isinstance(content, str) or not content.strip():
-        raise ValueError("The reducer returned empty blog content.")
-
-    return {
-        "final_content": content.strip(),
-    }
+    return {"final_content": final_content}
