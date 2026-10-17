@@ -1,6 +1,7 @@
 
-const AI_SERVICE_URL =
-  process.env.AI_SERVICE_URL || "http://localhost:8000";
+const AI_SERVICE_URL = (
+  process.env.AI_SERVICE_URL || "http://localhost:8000"
+).replace(/\/+$/, "");
 
 export const generateBlogWithAI = async ({ prompt }) => {
   let response;
@@ -17,26 +18,41 @@ export const generateBlogWithAI = async ({ prompt }) => {
     console.error("AI service connection failed:", err.message);
 
     const error = new Error(
-      "Cannot connect to the AI service. Check whether FastAPI is running."
+      "Cannot connect to the AI service. Check AI_SERVICE_URL and service availability."
     );
     error.statusCode = 502;
     throw error;
   }
 
+  // Read the response as text first so non-JSON errors are visible.
+  const responseText = await response.text();
+
+  console.log("AI service URL:", AI_SERVICE_URL);
+  console.log("AI service HTTP status:", response.status);
+  console.log(
+    "AI service content type:",
+    response.headers.get("content-type")
+  );
+  console.log(
+    "AI service response preview:",
+    responseText.slice(0, 1000)
+  );
+
   let data;
 
   try {
-    data = await response.json();
+    data = JSON.parse(responseText);
   } catch {
     console.error("AI service returned a non-JSON response.");
 
-    const error = new Error("AI service returned an invalid response.");
+    const error = new Error(
+      `AI service returned a non-JSON response (HTTP ${response.status}).`
+    );
     error.statusCode = 502;
     throw error;
   }
 
   if (!response.ok) {
-    // Log the actual FastAPI error for debugging.
     console.error("AI service request failed:", {
       status: response.status,
       response: data,
